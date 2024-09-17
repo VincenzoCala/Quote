@@ -22,6 +22,59 @@ end;
 
 
 
+[EventSubscriber(ObjectType::Page, Page::"Sales Quote", 'OnBeforeActionEvent', 'Archive Document', true, true)] // questo subscriber intercetta l'evento onbeforeactionevent della pagina sales quote quando viene cliccato il pulsante archive document
+local procedure OnBeforeActionArchiveDocumentQuote(var Rec: Record "Sales Header") // procedura locale che accetta un parametro di tipo sales header
+var
+    ArchiveCanNotBeCompletedErr: Label 'Document archive can not be completed.'; // dichiarazione di una variabile di tipo label per il messaggio di errore
+begin
+    RunCloseQuotePage(Rec, ArchiveCanNotBeCompletedErr); // chiama la procedura runclosequotepage passando il record salesheader e il messaggio di errore
+end;
+
+[EventSubscriber(ObjectType::Page, Page::"Sales Quote", 'OnBeforeActionEvent', 'MakeOrder', true, true)]
+local procedure OnBeforeActionMakeOrderQuote(var Rec: Record "Sales Header")
+var
+    OrderCreationCanNotBeCompletedErr: Label 'Order creation can not be completed.';
+begin
+    RunCloseQuotePage(Rec, OrderCreationCanNotBeCompletedErr);
+end;
+
+[EventSubscriber(ObjectType::Page, Page::"Sales Quotes", 'OnBeforeActionEvent', 'MakeOrder', true, true)] // questo subscriber intercetta l'evento onbeforeactionevent della pagina sales quotes quando viene cliccato il pulsante make order
+local procedure OnBeforeActionMakeOrderQuotes(var Rec: Record "Sales Header") // procedura locale che accetta un parametro di tipo sales header
+var
+    OrderCreationCanNotBeCompletedErr: Label 'Order creation can not be completed.'; // dichiarazione di una variabile di tipo label per il messaggio di errore
+begin
+    RunCloseQuotePage(Rec, OrderCreationCanNotBeCompletedErr); // chiama la procedura runclosequotepage passando il record salesheader e il messaggio di errore
+end;
+
+local procedure RunCloseQuotePage(var SalesHeader: Record "Sales Header"; NotCompletedErr: Text) // procedura locale che accetta due parametri, un record salesheader e un testo
+begin
+    if SalesHeader."Won/Lost Quote Status" <> SalesHeader."Won/Lost Quote Status"::"In Progress" then // controlla lo stato della quotazione salesheader se è diverso da in progress
+        exit; // se lo stato non è in progress esce dalla procedura
+
+    if Page.RunModal(Page::"SOL Close Quote", SalesHeader) <> Action::LookupOK then //dopo che la pagina modale viene chiusa, il comando verifica il risultato dell'azione eseguita dall'utente, <> è l'operatore di disuguagianza , quindi se la condizione verifica se l'azione viene eseguita dall'utente non è stata quella di conferma (ok)
+        Error(NotCompletedErr); // se l'utente non conferma (ok) viene visualizzato un messaggio di errore
+end; // le pagine modali sono utili quando è necessario assicurarsi che un utente esegua un'azione prima di continuare con l'esecuzione del codice.
+
+    
+[EventSubscriber(ObjectType::Codeunit, Codeunit::ArchiveManagement, 'OnBeforeSalesHeaderArchiveInsert', '', true, true)] // questo attributo dichiara che la procedura onbeforesalesheaderarchiveinsert è un subscriber per l'evento onbeforesalesheaderarchiveinsert della codeunit archivemanagement e (true, true significa che è in modalità solo lettura)
+local procedure OnBeforeSalesHeaderArchiveInsert(var SalesHeaderArchive: Record "Sales Header Archive"; SalesHeader: Record "Sales Header") //la procedura prende due parametri: salesHeaderArchive che è un record della tabella Sales Header Archive passato per riferimento, e salesHeader che è un record della tabella Sales Header
+begin
+    if (SalesHeader."Document Type" <> SalesHeader."Document Type"::Quote) then // controlla se il tipo di documento della quotazione è diverso da quote
+        exit; // se il tipo di documento non è quote esce dalla procedura
+
+    SalesHeaderArchive."SOL Quote Status" := SalesHeader."Won/Lost Quote Status";
+    SalesHeaderArchive."SOL Won/Lost Date" := SalesHeader."Won/Lost Date";
+    SalesHeaderArchive."SOL Won/Lost Reason Code" := SalesHeader."Won/Lost Reason Code";
+    SalesHeaderArchive."SOL Won/Lost Reason Desc." := SalesHeader."Won/Lost Reason Desc.";
+    SalesHeaderArchive."SOL Won/Lost Remarks" := SalesHeader."Won/Lost Remarks";
+    // se il tipo di documento è quote allora i valore personalizzati nel record salesHeader vengono copiati dentro sales HeaderArchive
+end;
+
+
+
+
+
+
 
 
 }
