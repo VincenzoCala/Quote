@@ -20,7 +20,7 @@ Documents: La pagina è utilizzata per documenti. */
             {
                 Caption = 'General';
 
-                field(QuoteWon;rec."Won/Lost Quote Status")
+                field(QuoteWonlost;rec."Won/Lost Quote Status")
                 {
                     ApplicationArea = All;
                     Editable = AllowChangeStatus;

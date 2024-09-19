@@ -92,10 +92,91 @@ codeunit 50125 "SOL Quote Status Mgmt"
         exit('');
     end;
 
+    [EventSubscriber(ObjectType::Codeunit, Codeunit::"Conf./Personalization Mgt.", 'OnRoleCenterOpen', '', true, true)] // questo attributo dichiara la procedura OnRoleCenterOpen come un subscriber per l'evento OnRoleCenterOpen della codeunit Conf./Personalization Mgt.
+    local procedure OnRoleCenterOpen()
+    var
+        SalespersonCode: Code[20];
+    begin
+        SalespersonCode := GetSalespersonForLoggedInUser(); // chiama la procedura per ottenere il codice del venditore per l'utente attualmente connesso e  lo assegna alla variabile salespersoncode
+
+        if SalespersonCode = '' then
+            exit;
+
+        // Get Won quotes
+        GetQuoteRecords("EnumWonLost"::Won, SalespersonCode); // chiama la procedura GetQuoteRecords per ottenere le quotazioni vinte per il venditore specificato
+        // Get Lost quotes
+        GetQuoteRecords("EnumWonLost"::Lost, SalespersonCode);
+    end;
+
+    local procedure GetQuoteRecords(WonLostStatus: Enum "EnumWonLost"; SalespersonCode: Code[20]) // accetta due parametri lo stato vinto o perso di una quotazione e il codice che rappresenta il venditore
+    var
+        SalesHeader: Record "Sales Header";
+        NoOfRecords: Integer;
+    begin
+        SalesHeader.Reset(); // reimposta il record salesheader, cancellando varii filtri
+        SalesHeader.SetRange("Document Type", SalesHeader."Document Type"::Quote); // imposta il filtro per trovare i record salesheader con il tipo di documento uguale a quote
+        SalesHeader.SetRange("Salesperson Code", SalespersonCode); // imposta il filtro per trovare i record salesheader con il codice del venditore uguale al codice del venditore passato come parametro
+        SalesHeader.SetRange("Won/Lost Quote Status", WonLostStatus);// imposta il filtro per trovare i record salesheader con lo stato della quotazione uguale allo stato passato come parametro
+        SalesHeader.SetRange("Won/Lost Date", AddDaystoDateTime(CurrentDateTime(), -5), CurrentDateTime()); // imposta il filtro per trovare i record salesheader con la data di vittoria o perdita compresa tra 5 giorni fa e oggi
+        NoOfRecords := SalesHeader.Count(); // conta i record che soddisfano i filtri impostati
+        if NoOfRecords <> 0 then // se il numero di record trovati è diverso da 0 esegue la procedura SendNoOfQuoteNotification
+            SendNoOfQuoteNotification(WonLostStatus, NoOfRecords, SalespersonCode);
+    end;
+
+    LOCAL procedure AddDaystoDateTime(SourceDateTime: DateTime; NoOfDays: Integer): DateTime // accetta due parametri, una data e un numero di giorni
+    begin
+        exit(SourceDateTime + (NoOfDays * 86400000)); // restituisce la data sorgente più il numero di giorni moltiplicato per 86400000
+    end;
+
+
+    local procedure SendNoOfQuoteNotification(NoOfQuotes: Integer; WonLostStatus: Enum EnumWonLost; SalespersonCode: Code[20])
+    var
+        QuoteNotification: Notification;
+        YouWonLostQuotesMsg: Label 'You %1 ''%2'' quote(s) during the last 5 days.', Comment = '%1 = Won/Lost ; %2 = No of quotes';
+        ShowQuotesLbl: Label 'Show %1 Quotes', Comment = '%1 = Won/Lost';
+    begin
+        QuoteNotification.Message := StrSubstNo(YouWonLostQuotesMsg, WonLostStatus, NoOfQuotes);
+        QuoteNotification.SetData('SalespersonCode', SalespersonCode);
+        QuoteNotification.SetData('WonLostStatus', Format(WonLostStatus.AsInteger()));
+        QuoteNotification.AddAction(StrSubstNo(ShowQuotesLbl, WonLostStatus), Codeunit::"SOL Quote Status Mgmt", 'OpenQuotes');
+        QuoteNotification.Send();
+    end;
+    // Procedure will be used in the notification.
+
+
+    // Procedure will be used in the notification.
+    procedure OpenQuotes(QuoteNotification: Notification)
+    var
+        SalesHeader: Record "Sales Header";
+        WonLostStatus: Enum EnumWonLost;
+        SalespersonCode: Code[20];
+        WonLostStatusInteger: Integer;
+    begin
+        SalespersonCode := CopyStr(QuoteNotification.GetData('SalespersonCode'), 1, MaxStrLen(SalespersonCode));
+        Evaluate(WonLostStatusInteger, QuoteNotification.GetData('WonLostStatus'));
+        WonLostStatus := "EnumWonLost".FromInteger(WonLostStatusInteger);
+
+        SalesHeader.Reset();
+        SalesHeader.SetRange("Document Type", SalesHeader."Document Type"::Quote);
+        SalesHeader.SetRange("Salesperson Code", SalespersonCode);
+        SalesHeader.SetRange("Won/Lost Quote Status", WonLostStatus);
+        SalesHeader.SetRange("Won/Lost Date", AddDaysToDateTime(CurrentDateTime(), -5), CurrentDateTime());
+        if SalesHeader.FindSet() then
+            Page.Run(Page::"Sales Quotes", SalesHeader);
+    end;
 
 
 
 
 
 }
+
+
+
+
+
+
+
+
+
 
